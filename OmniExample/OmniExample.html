@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+</head>
+
+<body>
+    
+    <div>Hello mn</div>
+    Username: <input name="username" type="text">
+    Message : <input name="message" type="text">
+    <button>Send</button>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js" integrity="sha384-7EyYLQZgWBi67fBtVxw60/OWl1kjsfrPFcaU0pp0nAh+i8FD068QogUvg85Ewy1k" crossorigin="anonymous"></script>
+    <script>
+        var socket = io("http://localhost:3000");
+        var nameRandom = 'HieuNM'+Math.floor(Math.random() * 20) + 1;
+        socket.emit('connected',nameRandom);
+
+        $('div').text(nameRandom);
+
+        $('button').click(()=>{
+            var username = $('input[name="username"]').val();
+            var msg = $('input[name="message"]').val();
+
+            socket.emit('client-send-noti', {username,msg});
+            $('input[name="message"]').val('');
+            $('input[name="username"]').val('');
+        });
+        socket.on('serve-send-noti-agentmap', (data)=>{
+            // alert(data.msg);
+            console.log(data);
+        });
+        socket.on("connect_error", () => {
+            setTimeout(() => {
+                socket.connect();
+                var nameRandom = 'HieuNM'+Math.floor(Math.random() * 20) + 1;
+                 socket.emit('connected',nameRandom);
+            }, 1000);
+        });
+
+
+          
+    </script>
+</body>
+
+</html>

@@ -8,6 +8,9 @@ var apiRouter = require("./routes/api");
 var apiResponse = require("./helpers/apiResponse");
 var cors = require("cors");
 var http = require("http");
+var mysql   = require('mysql');
+const { use } = require("./routes/api");
+const {addUser,removeUser,getUser, getUserBySocketId} = require('./helpers/user');
 
 var app = express();
 
@@ -37,65 +40,64 @@ app.use(cors());
 app.set("view engine", "ejs");
 
 
+const con = mysql.createConnection({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    database: process.env.BD_DATA
+});
+var mySqlConnect = 1; 
+con.connect(function(err) {
+  if (err) {
+      mySqlConnect = 0;
+  }else{
+      console.log("MySql Connected!!!")  
+  }  
+});
 
-let users = [];
-const addUser = (username, socketId) => {
-    users.push({username, socketId})
+function promiseQuery(query) {
+  return new Promise((resolve, reject) => {
+      con.query(query, (err, results) => {
+          if (err) {
+              return reject(err);
+          }
+          resolve(results);
+      })
+  })
 }
-const removeUser = (socketId) => {
-    users = users.filter(user => user.socketId !== socketId)
+async function getUsersAll() {
+  let param = await promiseQuery(`select user_name, user_email from kb_users`);
+  return param;
 }
-const getUser = (username) => {
-    return users.find(user => user.username === username)
-}
-const getUserBySocketId= (socketId) => {
-    return users.find(user => user.socketId === socketId)
+async function updateDataUser(userName = '', socketId , disconnect = false) {
+  var sql  = `UPDATE ` + `kb_users` + ` SET ` + `socket_id` + `='${socketId}' AND is_online=1 WHERE ` + `user_name` + `='${userName}'`;
+  if(disconnect){
+    sql  = `UPDATE ` + `kb_users` + ` SET ` + `socket_id` + `=null AND is_online=0  WHERE ` + `socket_id` + `='${socketId}'`;
+  }
+  let param = await promiseQuery(sql);
+  return param;
 }
 
-io.on("connection" ,function (socket) {
-    console.log("TRUY CAP: " + socket.id);
 
-    socket.on("connected", username => {
+ io.on("connection" ,async function (socket) {
+    socket.on("connected",async username => {
         try {
-          console.log(username);
-          addUser(username, socket.id);
-          console.log(users);
+          var result = await updateDataUser(username, socket.id);
+          console.log(result);
         } catch (error) {
           console.log(error);
         }
     })
-
-    // Send & get message
-    socket.on("client-send-noti", ({username, msg}) => {
-        // console.log(username,msg);
+    socket.on("disconnect",async function () {
         try {
-          const user = getUser(username);
-           if(user){
-              io.to(user.socketId).emit("serve-send-noti-agentmap", {username, msg})
-          }else{
-              console.log('Khong co user');
-          }
-        } catch (error) {
-          console.log(error);
-        }
-    })
-
-    socket.on("disconnect",function () {
-        try {
-          var user = getUserBySocketId(socket.id);
-          removeUser(socket.id);
-          if(user){
-              console.log("NGAT KET NOI "+ user.username);
-          }
+          var result = await updateDataUser('', socket.id ,true);
+          console.log(result);
         } catch (error) {
             console.log(error);
         }
     });
 })
 app.io = io;
-app.get("/", function (req, res) {
-    res.render("trangchu");    
-});
 
 app.post("/receive-information-not-ready-tdv", [
     body('data.*.username').notEmpty(),
@@ -132,9 +134,6 @@ app.post("/receive-information-not-ready-tdv", [
 //Route Prefixes
 app.use("/", indexRouter);
 app.use("/api/", apiRouter);
-
-
-
 
 // throw 404 if URL not found
 app.all("*", function (req, res) {

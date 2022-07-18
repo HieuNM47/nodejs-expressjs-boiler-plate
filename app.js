@@ -66,13 +66,13 @@ function promiseQuery(query) {
   })
 }
 async function getUsersAll() {
-  let param = await promiseQuery(`select user_name, user_email from kb_users`);
+  let param = await promiseQuery(`select user_name, socket_id from kb_users where socket_id != ''`);
   return param;
 }
 async function updateDataUser(userName = '', socketId , disconnect = false) {
-  var sql  = `UPDATE ` + `kb_users` + ` SET ` + `socket_id` + `='${socketId}' AND is_online=1 WHERE ` + `user_name` + `='${userName}'`;
+  var sql  = `UPDATE ` + `kb_users` + ` SET ` + `socket_id` + `='${socketId}' , is_online=1 WHERE ` + `user_name` + `='${userName}'`;
   if(disconnect){
-    sql  = `UPDATE ` + `kb_users` + ` SET ` + `socket_id` + `=null AND is_online=0  WHERE ` + `socket_id` + `='${socketId}'`;
+    sql  = `UPDATE ` + `kb_users` + ` SET ` + `socket_id` + `=null , is_online=0  WHERE ` + `socket_id` + `='${socketId}'`;
   }
   let param = await promiseQuery(sql);
   return param;
@@ -104,19 +104,20 @@ app.post("/receive-information-not-ready-tdv", [
     body('data.*.time_not_ready_minutes').notEmpty(),
     body('data.*.time_shift_not_ready').notEmpty(),
     body('data.*.text_custom_to_omni').notEmpty(),
-  ],function (req, res) {
+  ],async function (req, res) {
     try {
       const errors = validationResult(req);
+      var lstUser = await getUsersAll();
       if (!errors.isEmpty()) {
           return res.status(401).json({status: 500,message:'Gửi thất bại',errors: errors.array()});
       }
       var count = 0;
       if(req.body.data){
         req.body.data.forEach(element => {
-          const user = getUser(element.username);
+          var user= lstUser.find(user => user.user_name === element.username);
           if(user){
             count++;
-            req.app.io.to(user.socketId).emit('serve-send-noti-agentmap', element.text_custom_to_omni);  
+            req.app.io.to(user.socket_id).emit('serve-send-noti-agentmap', element.text_custom_to_omni);  
           }else{
             console.log('User khong connect: ' + element.username);
           }
